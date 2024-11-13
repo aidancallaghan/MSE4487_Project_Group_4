@@ -8,7 +8,7 @@
 //
 
 // #define PRINT_SEND_STATUS                             // uncomment to turn on output packet send status
- #define PRINT_INCOMING                                // uncomment to turn on output of incoming data
+// #define PRINT_INCOMING                                // uncomment to turn on output of incoming data
 
 #include <Arduino.h>
 #include "ESP32_NOW.h"
@@ -66,11 +66,14 @@ const int cMaxDroppedPackets = 20;                    // maximum number of packe
 uint32_t lastHeartbeat = 0;                           // time of last heartbeat state change
 uint32_t lastTime = 0;                                // last time of motor control was updated
 uint32_t commsLossCount = 0;                          // number of sequential sent packets have dropped
+
 Button buttonFwd = {14, 0, 0, false, true, true};     // forward, NO pushbutton on GPIO 14, low state when pressed
-Button buttonRev = {12, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
+Button buttonRev = {13, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
+Button buttonLeft = {12, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
+Button buttonRight = {27, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
 
 // REPLACE WITH MAC ADDRESS OF YOUR DRIVE ESP32
-uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x63,0x72,0x50};  // MAC address of drive 00:01:02:03:04:05 
+uint8_t receiverMacAddress[] = {0xAC,0x15,0x18,0xD6,0x81,0x34};  // MAC address of drive 00:01:02:03:04:05 
 esp_now_control_data_t controlData;                   // data packet to send to drive system
 esp_now_drive_data_t inData;                          // data packet from drive system
 
@@ -78,6 +81,7 @@ esp_now_drive_data_t inData;                          // data packet from drive 
 //
 // The ESP_NOW_NetworkPeer class inherits from ESP_NOW_Peer and implements the _onReceive and _onSent methods.
 // For more information about the ESP_NOW_Peer class, see the ESP_NOW_Peer class in the ESP32_NOW.h file.
+//Copied from Lab4
 class ESP_NOW_Network_Peer : public ESP_NOW_Peer {
 public:
   ESP_NOW_Network_Peer(const uint8_t *mac_addr, const uint8_t *lmk = NULL)
@@ -85,6 +89,7 @@ public:
 
   ~ESP_NOW_Network_Peer() {}
 
+  //Copied from Lab4
   bool begin() {
     // Assumes that the ESP-NOW protocol is already initialized
     if (!add()) {
@@ -94,6 +99,7 @@ public:
     return true;
   }
 
+  //Copied from Lab4
   bool send_message(const uint8_t *data, size_t len) {
     if (data == NULL || len == 0) {
       log_e("Data to be sent is NULL or has a length of 0");
@@ -104,23 +110,25 @@ public:
   }
 
   // callback function for when data is received
+  //Copied from Lab4
   void onReceive(const uint8_t *data, size_t len, bool broadcast) {
     if (len == 0)                                       // if empty packet
     {
       return;                                           // return
     }
     memcpy(&inData, data, sizeof(inData));              // store drive data from controller
-#ifdef PRINT_INCOMING
+    #ifdef PRINT_INCOMING
     Serial.printf("%d\n", inData.time);
-#endif
+    #endif
   }
   
   // callback function for when data is sent
+  //Copied from Lab4
   void onSent(bool success) {
     if (success) {
-#ifdef PRINT_SEND_STATUS
-      log_i("Unicast message reported as sent %s to peer " MACSTR, success ? "successfully" : "unsuccessfully", MAC2STR(addr()));
-#endif
+      #ifdef PRINT_SEND_STATUS
+        log_i("Unicast message reported as sent %s to peer " MACSTR, success ? "successfully" : "unsuccessfully", MAC2STR(addr()));
+      #endif
       commsLossCount = 0;
     }
     else {
@@ -134,29 +142,44 @@ public:
 ESP_NOW_Network_Peer *peer;
 
 void setup() {
+
+  //Setup Serial
   Serial.begin(9600);                               // standard baud rate for ESP32 serial monitor
   while (!Serial) {                                   // wait for Serial to start
     delay(10);                                        // okay to delay during setup
   }
+
+  //Setup WIFI
   WiFi.mode(WIFI_STA);                                // use WiFi in station mode
   WiFi.setChannel(ESPNOW_WIFI_CHANNEL);               // set WiFi channel to use with peer
   while (!WiFi.STA.started()) {                       // wait for WiFi to start
     delay(100);                                       // okay to delay during setup
   }
+
+  //Connection Debug
   Serial.print("MAC address for controller "); 
   Serial.println(WiFi.macAddress());                  // print MAC address of ESP32
   
   // Configure GPIO
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat as output
   pinMode(cStatusLED, OUTPUT);                        // configure GPIO for communication status LED as output
-  pinMode(buttonFwd.pin, INPUT_PULLUP);               // configure GPIO for forward button pin as an input with pullup resistor
+
+  //FWD
+  pinMode(buttonFwd.pin, INPUT_PULLUP);                             // configure GPIO for forward button pin as an input with pullup resistor
   attachInterruptArg(buttonFwd.pin, buttonISR, &buttonFwd, CHANGE); // Configure forward pushbutton ISR to trigger on change
-  pinMode(buttonRev.pin, INPUT_PULLUP);               // configure GPIO for reverse button pin as an input with pullup resistor
+
+  //REV
+  pinMode(buttonRev.pin, INPUT_PULLUP);                             // configure GPIO for reverse button pin as an input with pullup resistor
   attachInterruptArg(buttonRev.pin, buttonISR, &buttonRev, CHANGE); // Configure reverse pushbutton ISR to trigger on change
 
-  pinMode(13, INPUT_PULLUP);                          //new buttons
-  pinMode(27, INPUT_PULLUP);                          //new buttons
-  pinMode(25, OUTPUT);                                //LED_2
+  //LEFT
+  pinMode(buttonLeft.pin, INPUT_PULLUP);                              // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonLeft.pin, buttonISR, &buttonLeft, CHANGE); // Configure reverse pushbutton ISR to trigger on change
+
+  //RIGHT
+  pinMode(buttonRight.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonRight.pin, buttonISR, &buttonRight, CHANGE); // Configure reverse pushbutton ISR to trigger on change
+  
 
   // Initialize the ESP-NOW protocol
   if (!ESP_NOW.begin()) {
@@ -164,7 +187,8 @@ void setup() {
     failReboot();
   }
 
-  // add drive as peer
+  //add drive as peer
+  //Copied from Lab4
   peer = new ESP_NOW_Network_Peer(receiverMacAddress);
   if (peer == nullptr || !peer->begin()) {
     Serial.printf("Failed to create or register the drive peer\n");
@@ -175,16 +199,20 @@ void setup() {
                                                                  receiverMacAddress[2], receiverMacAddress[3], 
                                                                  receiverMacAddress[4], receiverMacAddress[5]);
   }
+
   memset(&inData, 0, sizeof(inData));                 // clear drive data
   memset(&controlData, 0, sizeof(controlData));       // clear controller data
+
 }
 
 void loop() {
+
   uint32_t curTime = micros();                        // capture current time in microseconds
   if (curTime - lastTime > 10000) {                   // wait ~10 ms
     lastTime = curTime;
     controlData.time = curTime;                       // update transmission time
   
+
     if (!buttonFwd.state) {                           // forward pushbutton pressed
       controlData.dir = 1;
     }
@@ -194,9 +222,14 @@ void loop() {
     else {                                            // no input, stop
       controlData.dir = 0;
     }
+
+    controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
+    controlData.left = !buttonLeft.state;              //set the struct variables
+    controlData.right = !buttonRight.state;            //set the struct variables
+
     // if drive appears disconnected, update control signal to stop before sending
     if (commsLossCount > cMaxDroppedPackets) {
-      controlData.dir = 0;
+      //controlData.dir = 0;
     }
     // send control signal to drive
     if (peer->send_message((const uint8_t *) &controlData, sizeof(controlData))) {
@@ -205,25 +238,25 @@ void loop() {
     else {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
     }
-    controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
 
     
-    controlData.left = !digitalRead(13);              //set the struct variables
-    controlData.right = !digitalRead(27);             //set the struct variables
+    Serial.print(controlData.left);
+    Serial.print("    ");
+    Serial.print(controlData.right);
+    Serial.print("    ");
+    Serial.print(controlData.speed);
+    Serial.print("    ");
+    Serial.println(controlData.dir);               
+    
 
-    if ((inData.colourTemp <= 5200)&&(inData.colourTemp >= 4900)){        //if 
-      digitalWrite(25, HIGH);                          //Turn on LED;
-    }
-    else {
-      digitalWrite(25,LOW);
-    }
-    Serial.println(controlData.dir);                  //debug
+
     doHeartbeat();                                      // update heartbeat LED
   }
   
 }
 
 // blink heartbeat LED
+//Copied from Lab4
 void doHeartbeat() {
   uint32_t curMillis = millis();                      // get the current time in milliseconds
   // check to see if elapsed time matches the heartbeat interval
@@ -234,6 +267,7 @@ void doHeartbeat() {
 }
 
 // function to reboot the device
+//Copied from Lab4
 void failReboot() {
   Serial.printf("Rebooting in 3 seconds...\n");
   delay(3000);
