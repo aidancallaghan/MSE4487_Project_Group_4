@@ -1,18 +1,3 @@
-// 
-// MME 4487 Lab 4 Drive
-// 
-//  Language: Arduino (C++)
-//  Target:   ESP32
-//  Author:   Michael Naish
-//  Date:     2024 10 07
-//
-//  Editor: Jonah and Aidan
-// 
-//  normal forward, reverse function with left, right to stop
-//  with added only left, right spinner
-
-// #define SERIAL_STUDIO                                 // print formatted string, that can be captured and parsed by Serial-Studio
-// #define PRINT_SEND_STATUS                             // uncomment to turn on output packet send status
 #define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
 
 #include <Arduino.h>
@@ -30,7 +15,7 @@
 typedef struct {
   int dir;                                            // drive direction: 1 = forward, -1 = reverse, 0 = stop
   uint32_t time;                                      // time packet sent
-  int speed;                                          // variabel for receiving motor speed
+  int speed;                                          // variable for receiving motor speed
   bool left;                                          // variable for left button, either on or off
   bool right;                                         // variable for right button, either on or off
 } __attribute__((packed)) esp_now_control_data_t;
@@ -38,12 +23,12 @@ typedef struct {
 // Drive data packet structure
 // The attribute "packed" ensures that the struct is not padded (all data is contiguous in the memory and without gaps).
 // The maximum size of the complete message is 250 bytes (ESP_NOW_MAX_DATA_LEN).
+//Copied from Lab4
 typedef struct {
   uint32_t time;                                      // time packet sent
-  int colorTemp;                                      // variable to send out color temp data
 } __attribute__((packed)) esp_now_drive_data_t;
 
-// Encoder structure
+// Encoder structure copied from Lab4
 struct Encoder {
   const int chanA;                                    // GPIO pin for encoder channel A
   const int chanB;                                    // GPIO pin for encoder channel B
@@ -85,12 +70,15 @@ int32_t target[] = {0, 0};                            // target encoder count fo
 int32_t lastEncoder[] = {0, 0};                       // encoder count at last control cycle
 float targetF[] = {0.0, 0.0};                         // target for motor as float
 
-uint8_t receiverMacAddress[] = {0xAC,0x15,0x18,0xD6,0x81,0x34};   // MAC address of controller 00:01:02:03:04:05
+uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x62,0x52,0xCC};   // MAC address of controller 00:01:02:03:04:05
 esp_now_control_data_t inData;                                    // control data packet from controller
 esp_now_drive_data_t driveData;                                   // data packet to send to controller
 
 
 class ESP_NOW_Network_Peer : public ESP_NOW_Peer {
+
+
+//Copied from Lab4  
 public:
   ESP_NOW_Network_Peer(const uint8_t *mac_addr, const uint8_t *lmk = NULL)
     : ESP_NOW_Peer(mac_addr, ESPNOW_WIFI_CHANNEL, ESPNOW_WIFI_IFACE, lmk) {}
@@ -122,17 +110,17 @@ public:
       return;                                           // return
     }
     memcpy(&inData, data, sizeof(inData));              // store drive data from controller
-#ifdef PRINT_INCOMING
-    Serial.printf("%d, %d, %d, %d, %d\n", inData.dir, inData.speed, inData.left, inData.right, inData.time); // print out incoming data for troubleshooting
-#endif
+    #ifdef PRINT_INCOMING
+      Serial.printf("%d, %d, %d, %d, %d\n", inData.dir, inData.speed, inData.left, inData.right, inData.time); // print out incoming data for troubleshooting
+    #endif
   }
   
   // callback function for when data is sent
   void onSent(bool success) {
     if (success) {
-#ifdef PRINT_SEND_STATUS
+      #ifdef PRINT_SEND_STATUS
       log_i("Unicast message reported as sent %s to peer " MACSTR, success ? "successfully" : "unsuccessfully", MAC2STR(addr()));
-#endif
+      #endif
       commsLossCount = 0;
     }
     else {
@@ -146,41 +134,56 @@ public:
 // Peers
 ESP_NOW_Network_Peer *peer;
 
+
 void setup() {
+  
+  //Serial Setup
   Serial.begin(115200);                               // standard baud rate for ESP32 serial monitor
   while (!Serial) {                                   // wait for Serial to start
     delay(10);                                        // okay to delay during setup
   }
 
+  //WIFI Setup
   WiFi.mode(WIFI_STA);                                // use WiFi in station mode
   WiFi.setChannel(ESPNOW_WIFI_CHANNEL);               // set WiFi channel to use with peer
   while (!WiFi.STA.started()) {                       // wait for WiFi to start
     delay(100);                                       // okay to delay during setup
   }
 
+  //Connection Debug
   Serial.print("MAC address for drive "); 
   Serial.println(WiFi.macAddress());                  // print MAC address of ESP32
-  
-  pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat
-  pinMode(cStatusLED, OUTPUT);                        // configure GPIO for communication status LED as output
 
-  // setup motors with encoders
+
+  pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat
+  
+
+  //setup motors with encoders
+  //Copied from Lab4
   for (int k = 0; k < cNumMotors; k++) {
+
     ledcAttach(cIN1Pin[k], cPWMFreq, cPWMRes);        // setup INT1 GPIO PWM channel
     ledcAttach(cIN2Pin[k], cPWMFreq, cPWMRes);        // setup INT2 GPIO PWM channel
+
     pinMode(encoder[k].chanA, INPUT);                 // configure GPIO for encoder channel A input
     pinMode(encoder[k].chanB, INPUT);                 // configure GPIO for encoder channel B input
+
     // configure encoder to trigger interrupt with each rising edge on channel A
     attachInterruptArg(encoder[k].chanA, encoderISR, &encoder[k], RISING);
+
   }
 
+
   // Initialize the ESP-NOW protocol
+  //Copied from Lab4
   if (!ESP_NOW.begin()) {
     Serial.printf("Failed to initialize ESP-NOW\n");
     failReboot();
   }
   
+
   // add controller as peer
+  //Copied from Lab4
   peer = new ESP_NOW_Network_Peer(receiverMacAddress);
   if (peer == nullptr || !peer->begin()) {
     Serial.printf("Failed to create or register the controller peer\n");
@@ -191,11 +194,17 @@ void setup() {
                                                                  receiverMacAddress[2], receiverMacAddress[3], 
                                                                  receiverMacAddress[4], receiverMacAddress[5]);
   }
+
+
   memset(&inData, 0, sizeof(inData));                 // clear controller data
   memset(&driveData, 0, sizeof(driveData));           // clear drive data
+
+
 }
 
 void loop() {
+  
+
   float deltaT = 0;                                   // time interval
   int32_t pos[] = {0, 0};                             // current motor positions
   int32_t e[] = {0, 0};                               // position error
@@ -208,24 +217,115 @@ void loop() {
   float u[] = {0, 0};                                 // PID control signal
   int pwm[] = {0, 0};                                 // motor speed(s), represented in bit resolution
   int dir[] = {1, 1};                                 // direction that motor should turn
-   
-  // if too many sequential packets have dropped, assume loss of controller, restart as safety measure
-   if (commsLossCount > cMaxDroppedPackets) {
-    failReboot();
-  }
 
-  int motorSpeed = map(inData.speed, 0, 4095, 0, 14); // scale raw incoming data to servo range
+
+  int motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
+
 
   // store encoder positions to avoid conflicts with ISR updates
-  noInterrupts();                                     // disable interrupts temporarily while reading
+  noInterrupts();                                                     // disable interrupts temporarily while reading
+  
+  //Copied from Lab4
   for (int k = 0; k < cNumMotors; k++) {
     pos[k] = encoder[k].pos;                          // read and store current motor position
   }
-  interrupts();                                       // turn interrupts back on
+  
+  interrupts(); 
+
+
+  uint32_t curTime = micros();                        // capture current time in microseconds
+
+  if (curTime - lastTime > 10000) {                   // wait ~10 ms
+
+
+    deltaT = ((float) (curTime - lastTime)) / 1.0e6;  // compute actual time interval in seconds
+    lastTime = curTime;                               // update start time for next control cycle
+
+
+    driveData.time = curTime;                         // update transmission time
+
+    //Copied from Aidan's Lab4 Submission
+    for (int k = 0; k < cNumMotors; k++) {
+
+
+      velEncoder[k] = ((float) pos[k] - (float) lastEncoder[k]) / deltaT;       // calculate velocity in counts/sec
+      lastEncoder[k] = pos[k];                                                  // store encoder count for next control cycle
+      velMotor[k] = velEncoder[k] / cCountsRev * 60;                            // calculate motor shaft velocity in rpm
+
+
+      if (inData.left && inData.dir == 0) {           // if case switcher to see if only left or right button pressed w/o any froward or revers
+          posChange[0] = motorSpeed;                  // over ride the inData.dir * motorSpeed to force the same direction of the motors
+          posChange[1] = -motorSpeed;                 // because lower if k == 0 target = +/- targetF case, the directions have to be flopped
+      } else if (inData.right && inData.dir == 0) {
+          posChange[0] = -motorSpeed;
+          posChange[1] = motorSpeed;
+      } else {
+        posChange[k] = (float) (inData.dir * motorSpeed); // update with maximum speed // use direction from controller
+      }
+
+      // update target for set direction
+      targetF[k] = targetF[k] + posChange[k];         // set new target position
+      
+      if (k == 0) {                                   // assume differential drive
+        target[k] = (int32_t) targetF[k];             // motor 1 spins one way
+      }
+      else {
+        target[k] = (int32_t) -targetF[k];            // motor 2 spins in opposite direction
+      }     
+
+      // use PID to calculate control signal to motor
+      e[k] = target[k] - pos[k];                      // position error
+      dedt[k] = ((float) e[k]- ePrev[k]) / deltaT;    // derivative of error
+      eIntegral[k] = eIntegral[k] + e[k] * deltaT;    // integral of error (finite difference)
+      u[k] = cKp * e[k] + cKd * dedt[k] + cKi * eIntegral[k]; // compute PID-based control signal
+      ePrev[k] = e[k];                                // store error for next control cycle
+  
+      // set direction based on computed control signal
+      dir[k] = 1;                                     // default to forward directon
+      if (u[k] < 0) {                                 // if control signal is negative
+        dir[k] = -1;                                  // set direction to reverse
+      }
+
+      // set speed based on computed control signal
+      u[k] = fabs(u[k]);                              // get magnitude of control signal
+      if (u[k] > cMaxSpeedInCounts) {                 // if control signal will saturate motor
+        u[k] = cMaxSpeedInCounts;                     // impose upper limit
+      }
+      pwm[k] = map(u[k], 0, cMaxSpeedInCounts, cMinPWM, cMaxPWM); // convert control signal to pwm
+
+      // if loop to filter out both left right and front back buttons
+      if (inData.left && inData.dir != 0) {           // if left and either front or back, kill power to one side    
+        pwm[0] = 0;
+      } else if (inData.right && inData.dir != 0) {   // if right and either front or back, kill power to other side
+        pwm[1] = 0;
+      }      
+
+      if (commsLossCount < cMaxDroppedPackets / 4) {
+        setMotor(dir[k], pwm[k], cIN1Pin[k], cIN2Pin[k]); // update motor speed and direction
+      }
+      else {
+        setMotor(0, 0, cIN1Pin[k], cIN2Pin[k]);       // stop motor
+      }
+
+    }
+
+
+    // send data from drive to controller
+    if (peer->send_message((const uint8_t *) &driveData, sizeof(driveData))) {
+      digitalWrite(cStatusLED, 0);                    // if successful, turn off communucation status LED
+    }
+    else {
+      digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
+    }
+
+  }
+
+  doHeartbeat();                                      // update heartbeat LED
 
 }
 
-// blink heartbeat LED
+
+//Copied from Lab4
 void doHeartbeat() {
   uint32_t curMillis = millis();                      // get the current time in milliseconds
   // check to see if elapsed time matches the heartbeat interval
@@ -235,7 +335,8 @@ void doHeartbeat() {
   }
 }
 
-// send motor control signals, based on direction and pwm (speed)
+//send motor control signals, based on direction and pwm (speed)
+//Copied from Lab4
 void setMotor(int dir, int pwm, int in1, int in2) {
   if (dir == 1) {                                     // forward
     ledcWrite(in1, pwm);
@@ -252,16 +353,14 @@ void setMotor(int dir, int pwm, int in1, int in2) {
 }
 
 // function to reboot the device
+//Copied from Lab4
 void failReboot() {
   Serial.printf("Rebooting in 3 seconds...\n");
   delay(3000);
   ESP.restart();
 }
 
-// encoder interrupt service routine
-// argument is pointer to an encoder structure, which is statically cast to a Encoder structure, allowing multiple
-// instances of the encoderISR to be created (1 per encoder)
-// triggered by rising edge of channel A
+//Copied from Lab4
 void ARDUINO_ISR_ATTR encoderISR(void* arg) {
   Encoder* s = static_cast<Encoder*>(arg);            // cast pointer to static structure
   
