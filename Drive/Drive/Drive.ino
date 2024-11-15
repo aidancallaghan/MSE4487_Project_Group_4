@@ -4,8 +4,7 @@
 #include "ESP32_NOW.h"
 #include "WiFi.h"
 #include <esp_mac.h>                                  // For the MAC2STR and MACSTR macros
-#include <Wire.h>                                     
-#include "Adafruit_TCS34725.h"                        // For Colour Sensor
+
 
 // Definitions
 #define ESPNOW_WIFI_IFACE WIFI_IF_STA                 // Wi-Fi interface to be used by the ESP-NOW protocol
@@ -135,12 +134,6 @@ public:
 
 // Peers
 ESP_NOW_Network_Peer *peer;
-
-
-/* Initialise with specific int time and gain values */
-//Taken from example sketch
-Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_614MS, TCS34725_GAIN_1X);
-
 
 
 void setup() {
