@@ -136,6 +136,10 @@ public:
 // Peers
 ESP_NOW_Network_Peer *peer;
 
+/* Initialise with specific int time and gain values */
+//Taken from example sketch
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_614MS, TCS34725_GAIN_1X);
+
 
 void setup() {
   
@@ -156,9 +160,21 @@ void setup() {
   Serial.print("MAC address for drive "); 
   Serial.println(WiFi.macAddress());                  // print MAC address of ESP32
 
-
+  //Pinmodes
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat
-  
+  pinMode(23, OUTPUT);                                // TCS LED Pinmode
+
+    //Check if the connection is made to the sensor
+    //Taken from lab 4
+  if (tcs.begin()) {
+    //Output success message
+    Serial.println("Found sensor");
+  } else {
+    //Output failure message
+    Serial.println("No TCS34725 found ... check your connections");
+    //Must reset board
+    while (1);
+  }
 
   //setup motors with encoders
   //Copied from Lab4
