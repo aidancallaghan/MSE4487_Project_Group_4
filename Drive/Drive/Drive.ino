@@ -157,19 +157,6 @@ void setup() {
 
   //Heartbeat Pinmode
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat
-   //LED Pinmode
-  pinMode(23, OUTPUT);
-
-  //Check if the connection is made to the sensor
-  if (tcs.begin()) {
-    //Output success message
-    Serial.println("Found sensor");
-  } else {
-    //Output failure message
-    Serial.println("No TCS34725 found ... check your connections");
-    //Must reset board
-    while (1);
-  }  
 
   //setup motors with encoders
   //Copied from Lab4
