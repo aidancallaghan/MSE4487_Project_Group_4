@@ -4,6 +4,8 @@
 #include "ESP32_NOW.h"
 #include "WiFi.h"
 #include <esp_mac.h>                                  // For the MAC2STR and MACSTR macros
+#include <Wire.h>
+#include "Adafruit_TCS34725.h"                        //For Colour sensor
 
 // Definitions
 #define ESPNOW_WIFI_IFACE WIFI_IF_STA                 // Wi-Fi interface to be used by the ESP-NOW protocol
@@ -281,4 +283,94 @@ void loop() {
       ePrev[k] = e[k];                                // store error for next control cycle
   
       // set direction based on computed control signal
-      dir[k] = 1;          
+      dir[k] = 1;                                     // default to forward directon
+      if (u[k] < 0) {                                 // if control signal is negative
+        dir[k] = -1;                                  // set direction to reverse
+      }
+
+      // set speed based on computed control signal
+      u[k] = fabs(u[k]);                              // get magnitude of control signal
+      if (u[k] > cMaxSpeedInCounts) {                 // if control signal will saturate motor
+        u[k] = cMaxSpeedInCounts;                     // impose upper limit
+      }
+      pwm[k] = map(u[k], 0, cMaxSpeedInCounts, cMinPWM, cMaxPWM); // convert control signal to pwm
+
+      // if loop to filter out both left right and front back buttons
+      if (inData.left && inData.dir != 0) {           // if left and either front or back, kill power to one side    
+        pwm[0] = 0;
+      } else if (inData.right && inData.dir != 0) {   // if right and either front or back, kill power to other side
+        pwm[1] = 0;
+      }      
+
+      if (commsLossCount < cMaxDroppedPackets / 4) {
+        setMotor(dir[k], pwm[k], cIN1Pin[k], cIN2Pin[k]); // update motor speed and direction
+      }
+      else {
+        setMotor(0, 0, cIN1Pin[k], cIN2Pin[k]);       // stop motor
+      }
+
+    }
+
+
+    // send data from drive to controller
+    if (peer->send_message((const uint8_t *) &driveData, sizeof(driveData))) {
+      digitalWrite(cStatusLED, 0);                    // if successful, turn off communucation status LED
+    }
+    else {
+      digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
+    }
+
+  }
+
+  doHeartbeat();                                      // update heartbeat LED
+
+}
+
+
+//Copied from Lab4
+void doHeartbeat() {
+  uint32_t curMillis = millis();                      // get the current time in milliseconds
+  // check to see if elapsed time matches the heartbeat interval
+  if ((curMillis - lastHeartbeat) > cHeartbeatInterval) {
+    lastHeartbeat = curMillis;                        // update the heartbeat toggle time for the next cycle
+    digitalWrite(cHeartbeatLED, !digitalRead(cHeartbeatLED)); // toggle state of LED
+  }
+}
+
+//send motor control signals, based on direction and pwm (speed)
+//Copied from Lab4
+void setMotor(int dir, int pwm, int in1, int in2) {
+  if (dir == 1) {                                     // forward
+    ledcWrite(in1, pwm);
+    ledcWrite(in2, 0);
+  }
+  else if (dir == -1) {                               // reverse
+    ledcWrite(in1, 0);
+    ledcWrite(in2, pwm);
+  }
+  else {                                              // stop
+    ledcWrite(in1, 0);
+    ledcWrite(in2, 0);
+  }
+}
+
+// function to reboot the device
+//Copied from Lab4
+void failReboot() {
+  Serial.printf("Rebooting in 3 seconds...\n");
+  delay(3000);
+  ESP.restart();
+}
+
+//Copied from Lab4
+void ARDUINO_ISR_ATTR encoderISR(void* arg) {
+  Encoder* s = static_cast<Encoder*>(arg);            // cast pointer to static structure
+  
+  int b = digitalRead(s->chanB);                      // read state of channel B
+  if (b > 0) {                                        // B high indicates that it is leading channel A
+    s->pos++;                                         // increase position
+  }
+  else {                                              // B low indicates that it is lagging channel A
+    s->pos--;                                         // decrease position
+  }
+}         
