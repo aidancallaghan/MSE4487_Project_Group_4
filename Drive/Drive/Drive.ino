@@ -1,4 +1,4 @@
-#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
+//#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
 
 #include <Arduino.h>
 #include "ESP32_NOW.h"
@@ -64,7 +64,8 @@ const float cKd = 0.8;                                // derivative gain for PID
 
 // Variables
 uint32_t lastHeartbeat = 0;                           // time of last heartbeat state change
-uint32_t lastTime = 0;                                // last time of motor control was updated
+uint32_t lastTime1 = 0;                                // last time of motor control was updated
+uint32_t lastTime2 = 0;                                // last time of motor control was updated
 uint16_t commsLossCount = 0;                          // number of sequential sent packets have dropped
 Encoder encoder[] = {{25, 26, 0},                     // encoder 0 on GPIO 25 and 26, 0 position
                      {32, 33, 0}};                    // encoder 1 on GPIO 32 and 33, 0 position
@@ -251,18 +252,17 @@ void loop() {
   interrupts(); 
 
 
-  uint32_t curTime = micros();                        // capture current time in microseconds
+  uint32_t curTime1 = micros();                        // capture current time in microseconds
 
-  if (curTime - lastTime > 10000) {                   // wait ~10 ms
-
-
-    deltaT = ((float) (curTime - lastTime)) / 1.0e6;  // compute actual time interval in seconds
-    lastTime = curTime;                               // update start time for next control cycle
+  if (curTime1 - lastTime1 > 10000) {                   // wait ~10 ms
 
 
-    driveData.time = curTime;                         // update transmission time
+    deltaT = ((float) (curTime1 - lastTime1)) / 1.0e6;  // compute actual time interval in seconds
+    lastTime1 = curTime1;                               // update start time for next control cycle
 
-    //Copied from Aidan's Lab4 Submission
+    driveData.time = curTime1;                         // update transmission time
+
+    //Copied from Aidan's Lab4 Submission             //For loop for motor control
     for (int k = 0; k < cNumMotors; k++) {
 
 
@@ -329,14 +329,46 @@ void loop() {
 
 
     // send data from drive to controller
-    if (peer->send_message((const uint8_t *) &driveData, sizeof(driveData))) {
+    /*if (peer->send_message((const uint8_t *) &driveData, sizeof(driveData))) {
       digitalWrite(cStatusLED, 0);                    // if successful, turn off communucation status LED
     }
     else {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
-    }
+    }*/
+
 
   }
+
+
+//Needed a second one for colour sensor which takes 700ms to complete
+  uint32_t curTime2 = millis();
+
+  if (curTime2 - lastTime2 > 800) {
+
+    digitalWrite(23,LOW);
+
+    uint16_t r = tcs.read16(TCS34725_RDATAL);
+    uint16_t g = tcs.read16(TCS34725_GDATAL);
+    uint16_t b = tcs.read16(TCS34725_BDATAL);
+
+    //Print Values
+    Serial.print("B:");
+    Serial.print(b);
+    Serial.print(",");
+    Serial.print("R:");
+    Serial.print(r);
+    Serial.print(",");
+    Serial.print("G:");
+    Serial.print(g);
+    Serial.println(",");
+
+
+  }
+
+
+ 
+
+  
 
   doHeartbeat();                                      // update heartbeat LED
 
