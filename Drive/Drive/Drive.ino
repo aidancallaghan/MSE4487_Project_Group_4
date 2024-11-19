@@ -1,4 +1,5 @@
 //#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
+//#define OUTPUT_ON
 
 #include <Arduino.h>
 #include "ESP32_NOW.h"
@@ -42,6 +43,7 @@ void doHeartbeat();
 void setMotor(int dir, int pwm, int in1, int in2);
 void failReboot();
 void ARDUINO_ISR_ATTR encoderISR(void* arg);
+long degreesToDutyCycle(int deg);
 
 // Constants
 const int cHeartbeatLED = 2;                          // GPIO pin of built-in LED for heartbeat
@@ -61,6 +63,8 @@ const int cMaxDroppedPackets = 20;                    // maximum number of packe
 const float cKp = 1.5;                                // proportional gain for PID
 const float cKi = 0.2;                                // integral gain for PID
 const float cKd = 0.8;                                // derivative gain for PID
+const long cMinDutyCycle = 1650;                      // duty cycle for 0 degrees (adjust for motor if necessary)
+const long cMaxDutyCycle = 8175;                      // duty cycle for 180 degrees (adjust for motor if necessary)
 
 // Variables
 uint32_t lastHeartbeat = 0;                           // time of last heartbeat state change
@@ -72,6 +76,10 @@ Encoder encoder[] = {{25, 26, 0},                     // encoder 0 on GPIO 25 an
 int32_t target[] = {0, 0};                            // target encoder count for motor
 int32_t lastEncoder[] = {0, 0};                       // encoder count at last control cycle
 float targetF[] = {0.0, 0.0};                         // target for motor as float
+
+uint16_t r;
+uint16_t g;
+uint16_t b;
 
 uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x62,0x52,0xCC};   // MAC address of controller 00:01:02:03:04:05
 esp_now_control_data_t inData;                                    // control data packet from controller
@@ -192,6 +200,8 @@ void setup() {
 
   }
 
+  //Setup servo motor
+  ledcAttach(15, 50, 16);                      // setup servo pin for 50 Hz, 16-bit resolution
 
   // Initialize the ESP-NOW protocol
   //Copied from Lab4
@@ -336,6 +346,12 @@ void loop() {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
     }*/
 
+    if (g > 7500){
+      ledcWrite(15, degreesToDutyCycle(180)); // set the desired servo position
+    }
+    else{
+      ledcWrite(15, degreesToDutyCycle(0)); // set the desired servo position
+    }
 
   }
 
@@ -343,13 +359,15 @@ void loop() {
 //Needed a second one for colour sensor which takes 700ms to complete
   uint32_t curTime2 = millis();
 
-  if (curTime2 - lastTime2 > 800) {
+  if (curTime2 - lastTime2 > 750) {
+
+    lastTime2 = curTime2;
 
     digitalWrite(23,LOW);
 
-    uint16_t r = tcs.read16(TCS34725_RDATAL);
-    uint16_t g = tcs.read16(TCS34725_GDATAL);
-    uint16_t b = tcs.read16(TCS34725_BDATAL);
+    r = tcs.read16(TCS34725_RDATAL);
+    g = tcs.read16(TCS34725_GDATAL);
+    b = tcs.read16(TCS34725_BDATAL);
 
     //Print Values
     Serial.print("B:");
@@ -421,4 +439,14 @@ void ARDUINO_ISR_ATTR encoderISR(void* arg) {
   else {                                              // B low indicates that it is lagging channel A
     s->pos--;                                         // decrease position
   }
-}         
+}  
+
+long degreesToDutyCycle(int deg) {
+  long dutyCycle = map(deg, 0, 180, cMinDutyCycle, cMaxDutyCycle);  // convert to duty cycle
+  #ifdef OUTPUT_ON
+  float percent = dutyCycle * 0.0015259;              // dutyCycle / 65535 * 100
+  Serial.printf("Degrees %d, Duty Cycle Val: %ld = %f%%\n", servoPos, dutyCycle, percent);
+  #endif
+  return dutyCycle;
+
+  }
