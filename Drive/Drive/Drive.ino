@@ -1,4 +1,4 @@
-//#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
+#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
 //#define OUTPUT_ON
 
 #include <Arduino.h>
@@ -21,6 +21,7 @@ typedef struct {
   int speed;                                          // variable for receiving motor speed
   bool left;                                          // variable for left button, either on or off
   bool right;                                         // variable for right button, either on or off
+  bool mode;                                          //Drive mode = 1, Sort mode = 0
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -268,12 +269,12 @@ void loop() {
 
   if (curTime1 - lastTime1 > 10000) {                   // wait ~10 ms
 
-    if (digitalRead(35)){
+    if (!inData.mode){
       motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
       dirCommand = inData.dir;
+      digitalWrite(23,LOW);
     }
     else{
-
     }
 
     deltaT = ((float) (curTime1 - lastTime1)) / 1.0e6;  // compute actual time interval in seconds
@@ -367,16 +368,16 @@ void loop() {
 //Needed a second one for colour sensor which takes 700ms to complete
   uint32_t curTime2 = millis();
 
-  if (curTime2 - lastTime2 > 2000) {
+  if (curTime2 - lastTime2 > 800) {
 
     ledcWrite(15, degreesToDutyCycle(85)); // set the desired servo position
 
-    if (!digitalRead(35)){
+    if (inData.mode){
       
       motorSpeed = 4;
       dirCommand = 1;
       
-      digitalWrite(23,LOW);
+      digitalWrite(23,HIGH);
 
       r = tcs.read16(TCS34725_RDATAL);
       g = tcs.read16(TCS34725_GDATAL);
@@ -384,19 +385,19 @@ void loop() {
 
     }
     else{
-
+      
     }
 
   }
 
-  if (curTime2 - lastTime2 > 5000) {
+  if (curTime2 - lastTime2 > 3000) {
 
-    if (!digitalRead(35)){
+    if (inData.mode){
       if ((r>1000)&&(r<90000)&&(g>1350)&&(g<90000)&&(b>1250)&&(b<7000)){
         ledcWrite(15, degreesToDutyCycle(15)); // set the desired servo position 
       }
       else{
-        ledcWrite(15, degreesToDutyCycle(165)); // set the desired servo position
+        ledcWrite(15, degreesToDutyCycle(15)); // set the desired servo position
       }
 
       //Print Values
