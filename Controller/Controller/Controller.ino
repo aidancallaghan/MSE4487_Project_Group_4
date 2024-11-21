@@ -164,7 +164,7 @@ void setup() {
   // Configure GPIO
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat as output
   pinMode(cStatusLED, OUTPUT);                        // configure GPIO for communication status LED as output
-  pinMode(35, 'INPUT_PULLUP');                        //Sort mode switch input
+  pinMode(35, INPUT_PULLDOWN);                        //Sort mode switch input
 
   //FWD
   pinMode(buttonFwd.pin, INPUT_PULLUP);                             // configure GPIO for forward button pin as an input with pullup resistor
@@ -242,9 +242,16 @@ void loop() {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
     }
 
-    
-    Serial.print(controlData.mode);
-    Serial.print("    ");
+    if (digitalRead(35)){
+      Serial.print("hello");
+      Serial.print("    ");
+    }
+    else{
+      Serial.print("Goodbye");
+      Serial.print("    ");
+    }
+
+
     Serial.print(controlData.left);
     Serial.print("    ");
     Serial.print(controlData.right);
