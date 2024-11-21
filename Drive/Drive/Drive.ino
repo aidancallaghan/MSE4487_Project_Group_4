@@ -82,6 +82,7 @@ int motorSpeed = 0;                                   //speed for motors
 uint16_t r;
 uint16_t g;
 uint16_t b;
+uint16_t c;
 
 uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x62,0x52,0xCC};   // MAC address of controller 00:01:02:03:04:05
 esp_now_control_data_t inData;                                    // control data packet from controller
@@ -267,42 +268,13 @@ void loop() {
 
   if (curTime1 - lastTime1 > 10000) {                   // wait ~10 ms
 
-
-    
-
     if (digitalRead(35)){
       motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
       dirCommand = inData.dir;
     }
     else{
 
-      motorSpeed = 4;
-      dirCommand = 1;
-
-
-      if ((r>0)&&(r<90000)&&(g>0)&&(g<90000)&&(b>0)&&(b<7000)){
-        ledcWrite(15, degreesToDutyCycle(90)); // set the desired servo position
-        
-      }
-      else if ((r>0)&&(r<90000)&&(g>0)&&(g<90000)&&(b>7000)&&(b<90000)){
-        ledcWrite(15, degreesToDutyCycle(180)); // set the desired servo position
-        delay(10);
-        ledcWrite(15, degreesToDutyCycle(90)); // set the desired servo position
-      }
-      else{
-        ledcWrite(15, degreesToDutyCycle(0)); // set the desired servo position
-        delay(10);
-        ledcWrite(15, degreesToDutyCycle(90)); // set the desired servo position
-      }
-
     }
-
-
-
-
-
-
-
 
     deltaT = ((float) (curTime1 - lastTime1)) / 1.0e6;  // compute actual time interval in seconds
     lastTime1 = curTime1;                               // update start time for next control cycle
@@ -385,7 +357,7 @@ void loop() {
         digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
       }*/
     
-    
+    ledcWrite(15, degreesToDutyCycle(90)); // set the desired servo position
 
     
 
@@ -395,27 +367,52 @@ void loop() {
 //Needed a second one for colour sensor which takes 700ms to complete
   uint32_t curTime2 = millis();
 
-  if (curTime2 - lastTime2 > 750) {
+  if (curTime2 - lastTime2 > 2000) {
+
+    
+    
+
+    if (!digitalRead(35)){
+      
+      motorSpeed = 4;
+      dirCommand = 1;
+      
+      digitalWrite(23,LOW);
+
+      /*r = tcs.read16(TCS34725_RDATAL);
+      g = tcs.read16(TCS34725_GDATAL);
+      b = tcs.read16(TCS34725_BDATAL);*/
+
+      tcs.getRawData(&r, &g, &b, &c);
+
+
+      if ((r>1000)&&(r<90000)&&(g>1350)&&(g<90000)&&(b>1250)&&(b<7000)){
+        ledcWrite(15, degreesToDutyCycle(0)); // set the desired servo position
+        delay(1000);
+      }
+      else{
+        ledcWrite(15, degreesToDutyCycle(180)); // set the desired servo position
+        delay(1000);
+      }
+
+      //Print Values
+      Serial.print("B:");
+      Serial.print(b);
+      Serial.print(",");
+      Serial.print("R:");
+      Serial.print(r);
+      Serial.print(",");
+      Serial.print("G:");
+      Serial.print(g);
+      Serial.println(",");
+
+    }
+    else{
+
+    }
+
 
     lastTime2 = curTime2;
-
-    digitalWrite(23,LOW);
-
-    r = tcs.read16(TCS34725_RDATAL);
-    g = tcs.read16(TCS34725_GDATAL);
-    b = tcs.read16(TCS34725_BDATAL);
-
-    //Print Values
-    Serial.print("B:");
-    Serial.print(b);
-    Serial.print(",");
-    Serial.print("R:");
-    Serial.print(r);
-    Serial.print(",");
-    Serial.print("G:");
-    Serial.print(g);
-    Serial.println(",");
-
 
   }
 
