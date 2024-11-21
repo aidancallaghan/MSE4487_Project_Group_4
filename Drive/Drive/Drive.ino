@@ -357,7 +357,7 @@ void loop() {
         digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
       }*/
     
-    ledcWrite(15, degreesToDutyCycle(90)); // set the desired servo position
+    
 
     
 
@@ -369,8 +369,7 @@ void loop() {
 
   if (curTime2 - lastTime2 > 2000) {
 
-    
-    
+    ledcWrite(15, degreesToDutyCycle(85)); // set the desired servo position
 
     if (!digitalRead(35)){
       
@@ -379,20 +378,25 @@ void loop() {
       
       digitalWrite(23,LOW);
 
-      /*r = tcs.read16(TCS34725_RDATAL);
+      r = tcs.read16(TCS34725_RDATAL);
       g = tcs.read16(TCS34725_GDATAL);
-      b = tcs.read16(TCS34725_BDATAL);*/
+      b = tcs.read16(TCS34725_BDATAL);
 
-      tcs.getRawData(&r, &g, &b, &c);
+    }
+    else{
 
+    }
 
+  }
+
+  if (curTime2 - lastTime2 > 5000) {
+
+    if (!digitalRead(35)){
       if ((r>1000)&&(r<90000)&&(g>1350)&&(g<90000)&&(b>1250)&&(b<7000)){
-        ledcWrite(15, degreesToDutyCycle(0)); // set the desired servo position
-        delay(1000);
+        ledcWrite(15, degreesToDutyCycle(15)); // set the desired servo position 
       }
       else{
-        ledcWrite(15, degreesToDutyCycle(180)); // set the desired servo position
-        delay(1000);
+        ledcWrite(15, degreesToDutyCycle(165)); // set the desired servo position
       }
 
       //Print Values
@@ -405,19 +409,13 @@ void loop() {
       Serial.print("G:");
       Serial.print(g);
       Serial.println(",");
-
     }
     else{
 
     }
 
-
-    lastTime2 = curTime2;
-
+      lastTime2 = curTime2;
   }
-
-
- 
 
   
 
