@@ -30,6 +30,7 @@ typedef struct {
   int speed;                                          //pot value from 0-4095
   bool left;                                          //is left button pressed?
   bool right;                                         //is right button pressed?
+  bool mode;                                          //Drive mode = 1, Sort mode = 0
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -163,6 +164,7 @@ void setup() {
   // Configure GPIO
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat as output
   pinMode(cStatusLED, OUTPUT);                        // configure GPIO for communication status LED as output
+  pinMode(35, 'INPUT_PULLUP');                        //Sort mode switch input
 
   //FWD
   pinMode(buttonFwd.pin, INPUT_PULLUP);                             // configure GPIO for forward button pin as an input with pullup resistor
@@ -226,6 +228,7 @@ void loop() {
     controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
     controlData.left = !buttonLeft.state;              //set the struct variables
     controlData.right = !buttonRight.state;            //set the struct variables
+    controlData.mode = digitalRead(35);                //The mode is set with the switch
 
     // if drive appears disconnected, update control signal to stop before sending
     if (commsLossCount > cMaxDroppedPackets) {
@@ -240,6 +243,8 @@ void loop() {
     }
 
     
+    Serial.print(controlData.mode);
+    Serial.print("    ");
     Serial.print(controlData.left);
     Serial.print("    ");
     Serial.print(controlData.right);
