@@ -1,4 +1,4 @@
-#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
+//#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
 //#define OUTPUT_ON
 
 #include <Arduino.h>
@@ -376,7 +376,15 @@ void loop() {
       
       motorSpeed = 4;
       dirCommand = 1;
-      
+
+    }
+
+  }
+
+  if (curTime2 - lastTime2 > 2200) {
+
+    if (inData.mode){
+
       digitalWrite(23,HIGH);
 
       r = tcs.read16(TCS34725_RDATAL);
@@ -384,20 +392,19 @@ void loop() {
       b = tcs.read16(TCS34725_BDATAL);
 
     }
-    else{
-      
-    }
-
+    
   }
 
   if (curTime2 - lastTime2 > 3000) {
 
     if (inData.mode){
-      if ((r>1000)&&(r<90000)&&(g>1350)&&(g<90000)&&(b>1250)&&(b<7000)){
-        ledcWrite(15, degreesToDutyCycle(15)); // set the desired servo position 
+      if ((b>200)&&(b<31000)&&(r>300)&&(r<35050)&&(g>400)&&(g<47500)){
+        ledcWrite(15, degreesToDutyCycle(165)); // set the desired servo position 
+        Serial.print("PASS     ");
       }
       else{
         ledcWrite(15, degreesToDutyCycle(15)); // set the desired servo position
+        Serial.print("FAIL     ");
       }
 
       //Print Values
