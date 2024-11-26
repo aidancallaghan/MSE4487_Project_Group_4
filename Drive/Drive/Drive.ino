@@ -85,6 +85,13 @@ uint16_t g;
 uint16_t b;
 uint16_t c;
 
+bool bWindow;
+bool rWindow;
+bool gWindow;
+bool cWindow;
+bool ctWindow;
+bool lWindow;
+
 uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x62,0x52,0xCC};   // MAC address of controller 00:01:02:03:04:05
 esp_now_control_data_t inData;                                    // control data packet from controller
 esp_now_drive_data_t driveData;                                   // data packet to send to controller
@@ -390,6 +397,7 @@ void loop() {
       r = tcs.read16(TCS34725_RDATAL);
       g = tcs.read16(TCS34725_GDATAL);
       b = tcs.read16(TCS34725_BDATAL);
+      c = tcs.read16(TCS34725_CDATAL);
 
     }
     
@@ -397,8 +405,19 @@ void loop() {
 
   if (curTime2 - lastTime2 > 3000) {
 
+    uint16_t CT = tcs.calculateColorTemperature_dn40(r, g, b, c);
+    uint16_t l = tcs.calculateLux(r, g, b);
+
+    bWindow = (b>2000)&&(b<2500);
+    rWindow = (r>2150)&&(r<2800);
+    gWindow = (g>2600)&&(g<3200);
+    cWindow = (c>700)&&(c<84000);
+    ctWindow = 0;
+    lWindow = l>1800;
+    
+
     if (inData.mode){
-      if ((b>200)&&(b<31000)&&(r>300)&&(r<35050)&&(g>400)&&(g<47500)){
+      if (bWindow&&rWindow&&gWindow&&cWindow&&lWindow){
         ledcWrite(15, degreesToDutyCycle(165)); // set the desired servo position 
         Serial.print("PASS     ");
       }
@@ -416,12 +435,22 @@ void loop() {
       Serial.print(",");
       Serial.print("G:");
       Serial.print(g);
+      Serial.print(",");
+      Serial.print("C:");
+      Serial.print(c);
+      Serial.print(",");
+      Serial.print("CT:");
+      Serial.print(CT);
+      Serial.print(",");
+      Serial.print("L:");
+      Serial.print(l);
       Serial.println(",");
+
+
     }
     else{
 
     }
-
       lastTime2 = curTime2;
   }
 
