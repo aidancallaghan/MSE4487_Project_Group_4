@@ -501,4 +501,10 @@ void ARDUINO_ISR_ATTR encoderISR(void* arg) {
   Encoder* s = static_cast<Encoder*>(arg);            // cast pointer to static structure
   
   int b = digitalRead(s->chanB);                      // read state of channel B
-  if (b > 0) {                                        // B high indicates that it is leading
+  if (b > 0) {                                        // B high indicates that it is leading channel A
+    s->pos++;                                         // increase position
+  }
+  else {                                              // B low indicates that it is lagging channel A
+    s->pos--;                                         // decrease position
+  }
+} 
