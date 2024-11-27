@@ -508,3 +508,12 @@ void ARDUINO_ISR_ATTR encoderISR(void* arg) {
     s->pos--;                                         // decrease position
   }
 } 
+
+long degreesToDutyCycle(int deg) {
+  long dutyCycle = map(deg, 0, 180, cMinDutyCycle, cMaxDutyCycle);  // convert to duty cycle
+  #ifdef OUTPUT_ON
+  float percent = dutyCycle * 0.0015259;              // dutyCycle / 65535 * 100
+  Serial.printf("Degrees %d, Duty Cycle Val: %ld = %f%%\n", servoPos, dutyCycle, percent);
+  #endif
+  return dutyCycle;
+}
