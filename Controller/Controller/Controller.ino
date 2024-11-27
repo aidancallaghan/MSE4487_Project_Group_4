@@ -30,7 +30,14 @@ typedef struct {
   int speed;                                          //pot value from 0-4095
   bool left;                                          //is left button pressed?
   bool right;                                         //is right button pressed?
+<<<<<<< HEAD
   bool mode;                                          //Drive mode = 1, Sort mode = 0
+=======
+  bool bot;
+  bool mid;
+  bool top;
+
+>>>>>>> collector
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -72,6 +79,9 @@ Button buttonFwd = {14, 0, 0, false, true, true};     // forward, NO pushbutton 
 Button buttonRev = {13, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
 Button buttonLeft = {12, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
 Button buttonRight = {27, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
+Button buttonBot = {32, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
+Button buttonMid = {33, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
+Button buttonTop = {25, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
 
 // REPLACE WITH MAC ADDRESS OF YOUR DRIVE ESP32
 uint8_t receiverMacAddress[] = {0xAC,0x15,0x18,0xD6,0x81,0x34};  // MAC address of drive 00:01:02:03:04:05 
@@ -182,6 +192,17 @@ void setup() {
   pinMode(buttonRight.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
   attachInterruptArg(buttonRight.pin, buttonISR, &buttonRight, CHANGE); // Configure reverse pushbutton ISR to trigger on change
   
+  //BOTTOM
+  pinMode(buttonBot.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonBot.pin, buttonISR, &buttonBot, CHANGE); // Configure reverse pushbutton ISR to trigger on change
+  
+  //MID
+  pinMode(buttonMid.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonMid.pin, buttonISR, &buttonMid, CHANGE); // Configure reverse pushbutton ISR to trigger on change
+
+  //TOP
+  pinMode(buttonTop.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonTop.pin, buttonISR, &buttonTop, CHANGE); // Configure reverse pushbutton ISR to trigger on change
 
   // Initialize the ESP-NOW protocol
   if (!ESP_NOW.begin()) {
@@ -225,10 +246,37 @@ void loop() {
       controlData.dir = 0;
     }
 
-    controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
+    if (!buttonBot.state){
+
+      controlData.mid = false;
+      controlData.top = false;
+      controlData.bot = true;
+    }
+    else if (!buttonMid.state){
+
+      controlData.bot = false;
+      controlData.top = false;
+      controlData.mid = true;
+
+    }
+    else if (!buttonTop.state){
+
+      controlData.bot = false;
+      controlData.mid = false;
+      controlData.top = true;
+      
+    }
+    else{
+
+    }
+
+
     controlData.left = !buttonLeft.state;              //set the struct variables
     controlData.right = !buttonRight.state;            //set the struct variables
     controlData.mode = digitalRead(35);                //The mode is set with the switch
+
+    controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
+    
 
     // if drive appears disconnected, update control signal to stop before sending
     if (commsLossCount > cMaxDroppedPackets) {
@@ -242,6 +290,7 @@ void loop() {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
     }
 
+<<<<<<< HEAD
     if (digitalRead(35)){
       Serial.print("hello");
       Serial.print("    ");
@@ -252,54 +301,20 @@ void loop() {
     }
 
 
+=======
+    
+    Serial.print(controlData.bot);
+    Serial.print("    ");
+    Serial.print(controlData.mid);
+    Serial.print("    ");
+    Serial.print(controlData.top);
+    Serial.print("    ");
+>>>>>>> collector
     Serial.print(controlData.left);
     Serial.print("    ");
     Serial.print(controlData.right);
     Serial.print("    ");
     Serial.print(controlData.speed);
     Serial.print("    ");
-    Serial.println(controlData.dir);               
-    
-
-
-    doHeartbeat();                                      // update heartbeat LED
-  }
+    Serial.println(control
   
-}
-
-// blink heartbeat LED
-//Copied from Lab4
-void doHeartbeat() {
-  uint32_t curMillis = millis();                      // get the current time in milliseconds
-  // check to see if elapsed time matches the heartbeat interval
-  if ((curMillis - lastHeartbeat) > cHeartbeatInterval) {
-    lastHeartbeat = curMillis;                        // update the heartbeat toggle time for the next cycle
-    digitalWrite(cHeartbeatLED, !digitalRead(cHeartbeatLED)); // toggle state of LED
-  }
-}
-
-// function to reboot the device
-//Copied from Lab4
-void failReboot() {
-  Serial.printf("Rebooting in 3 seconds...\n");
-  delay(3000);
-  ESP.restart();
-}
-
-// button interrupt service routine
-// argument is pointer to button structure, which is statically cast to a Button structure, allowing multiple
-// instances of the buttonISR to be created (1 per button)
-// implements software debounce and tracks button state
-void ARDUINO_ISR_ATTR buttonISR(void* arg) {
-  Button* s = static_cast<Button*>(arg);              // cast pointer to static structure
-
-  uint32_t pressTime = millis();                      // capture current time
-  s->state = digitalRead(s->pin);                     // capture state of button
-  // if button has been pressed and sufficient time has elapsed
-  if ((!s->state && s->lastState == 1) && (pressTime - s->lastPressTime > cDebounceDelay)) {
-    s->numberPresses += 1;                            // increment button press counter
-    s->pressed = true;                                // set flag for "valid" button press
-  }
-  s->lastPressTime = pressTime;                       // update time of last state change
-  s->lastState = s->state;                            // save last state
-}

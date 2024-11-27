@@ -23,6 +23,9 @@ typedef struct {
   bool left;                                          // variable for left button, either on or off
   bool right;                                         // variable for right button, either on or off
   bool mode;                                          //Drive mode = 1, Sort mode = 0
+  bool bot;
+  bool mid;
+  bool top;
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -51,9 +54,9 @@ long degreesToDutyCycle(int deg);
 const int cHeartbeatLED = 2;                          // GPIO pin of built-in LED for heartbeat
 const int cStatusLED = 27;                            // GPIO pin of communication status LED
 const int cHeartbeatInterval = 500;                   // heartbeat blink interval, in milliseconds
-const int cNumMotors = 2;                             // Number of DC motors
-const int cIN1Pin[] = {17, 19};                       // GPIO pin(s) for INT1
-const int cIN2Pin[] = {16, 18};                       // GPIO pin(s) for INT2
+const int cNumMotors = 3;                             // Number of DC motors
+const int cIN1Pin[] = {17, 19, 4};                       // GPIO pin(s) for INT1
+const int cIN2Pin[] = {16, 18, 5};                       // GPIO pin(s) for INT2
 const int cPWMRes = 8;                                // bit resolution for PWM
 const int cMinPWM = 0;                                // PWM value for minimum speed that turns motor
 const int cMaxPWM = pow(2, cPWMRes) - 1;              // PWM value for maximum speed
@@ -74,10 +77,11 @@ uint32_t lastTime1 = 0;                                // last time of motor con
 uint32_t lastTime2 = 0;                                // last time of motor control was updated
 uint16_t commsLossCount = 0;                          // number of sequential sent packets have dropped
 Encoder encoder[] = {{25, 26, 0},                     // encoder 0 on GPIO 25 and 26, 0 position
-                     {32, 33, 0}};                    // encoder 1 on GPIO 32 and 33, 0 position
-int32_t target[] = {0, 0};                            // target encoder count for motor
-int32_t lastEncoder[] = {0, 0};                       // encoder count at last control cycle
-float targetF[] = {0.0, 0.0};                         // target for motor as float
+                     {32, 33, 0},                     // encoder 1 on GPIO 32 and 33, 0 position
+                     {34, 35, 0}};                    // encoder 2 on GPIO 34 and 35, 0 position
+int32_t target[] = {0, 0, 0};                            // target encoder count for motor
+int32_t lastEncoder[] = {0, 0, 0};                       // encoder count at last control cycle
+float targetF[] = {0.0, 0.0, 0.0};                         // target for motor as float
 int dirCommand = 0;                                   //needed this variable so i could decide if controller dir is used or sorting dir
 int motorSpeed = 0;                                   //speed for motors
 
@@ -92,6 +96,7 @@ bool gWindow;
 bool cWindow;
 bool ctWindow;
 bool lWindow;
+
 
 uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x62,0x52,0xCC};   // MAC address of controller 00:01:02:03:04:05
 esp_now_control_data_t inData;                                    // control data packet from controller
@@ -134,7 +139,7 @@ public:
     }
     memcpy(&inData, data, sizeof(inData));              // store drive data from controller
     #ifdef PRINT_INCOMING
-      Serial.printf("%d, %d, %d, %d, %d\n", inData.dir, inData.speed, inData.left, inData.right, inData.time); // print out incoming data for troubleshooting
+      Serial.printf("%d, %d, %d, %d, %d\n", inData.bot, inData.mid, inData.top, inData.right, inData.time); // print out incoming data for troubleshooting
     #endif
   }
   
@@ -249,18 +254,31 @@ void loop() {
   
 
   float deltaT = 0;                                   // time interval
-  int32_t pos[] = {0, 0};                             // current motor positions
-  int32_t e[] = {0, 0};                               // position error
-  float velEncoder[] = {0, 0};                        // motor velocity in counts/sec
-  float velMotor[] = {0, 0};                          // motor shaft velocity in rpm
-  float posChange[] = {0, 0};                         // change in position for set speed
-  float ePrev[] = {0, 0};                             // previous position error
-  float dedt[] = {0, 0};                              // rate of change of position error (de/dt)
-  float eIntegral[] = {0, 0};                         // integral of error 
-  float u[] = {0, 0};                                 // PID control signal
-  int pwm[] = {0, 0};                                 // motor speed(s), represented in bit resolution
-  int dir[] = {1, 1};                                 // direction that motor should turn
+  int32_t pos[] = {0, 0, 0};                             // current motor positions
+  int32_t e[] = {0, 0, 0};                               // position error
+  float velEncoder[] = {0, 0, 0};                        // motor velocity in counts/sec
+  float velMotor[] = {0, 0, 0};                          // motor shaft velocity in rpm
+  float posChange[] = {0, 0, 0};                         // change in position for set speed
+  float ePrev[] = {0, 0, 0};                             // previous position error
+  float dedt[] = {0, 0, 0};                              // rate of change of position error (de/dt)
+  float eIntegral[] = {0, 0, 0};                         // integral of error 
+  float u[] = {0, 0, 0};                                 // PID control signal
+  int pwm[] = {0, 0, 0};                                 // motor speed(s), represented in bit resolution
+  int dir[] = {1, 1, 1};                                 // direction that motor should turn
 
+
+
+  int motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
+
+  if (inData.bot){
+    target[2] = 0;
+  }
+  else if(inData.mid){
+    target[2] = cCountsRev;
+  }
+  else if (inData.top){
+    target[2] = 2 * cCountsRev;
+  }
 
 
   // store encoder positions to avoid conflicts with ISR updates
@@ -454,6 +472,7 @@ void doHeartbeat() {
   // check to see if elapsed time matches the heartbeat interval
   if ((curMillis - lastHeartbeat) > cHeartbeatInterval) {
     lastHeartbeat = curMillis;                        // update the heartbeat toggle time for the next cycle
+    Serial.println("hb");
     digitalWrite(cHeartbeatLED, !digitalRead(cHeartbeatLED)); // toggle state of LED
   }
 }
@@ -505,4 +524,5 @@ long degreesToDutyCycle(int deg) {
   #endif
   return dutyCycle;
 }
+
 
