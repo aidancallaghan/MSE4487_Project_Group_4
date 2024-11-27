@@ -30,6 +30,10 @@ typedef struct {
   int speed;                                          //pot value from 0-4095
   bool left;                                          //is left button pressed?
   bool right;                                         //is right button pressed?
+  bool bot;
+  bool mid;
+  bool top;
+
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -71,6 +75,9 @@ Button buttonFwd = {14, 0, 0, false, true, true};     // forward, NO pushbutton 
 Button buttonRev = {13, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
 Button buttonLeft = {12, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
 Button buttonRight = {27, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
+Button buttonBot = {32, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
+Button buttonMid = {33, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
+Button buttonTop = {25, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
 
 // REPLACE WITH MAC ADDRESS OF YOUR DRIVE ESP32
 uint8_t receiverMacAddress[] = {0xAC,0x15,0x18,0xD6,0x81,0x34};  // MAC address of drive 00:01:02:03:04:05 
@@ -180,6 +187,17 @@ void setup() {
   pinMode(buttonRight.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
   attachInterruptArg(buttonRight.pin, buttonISR, &buttonRight, CHANGE); // Configure reverse pushbutton ISR to trigger on change
   
+  //BOTTOM
+  pinMode(buttonBot.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonBot.pin, buttonISR, &buttonBot, CHANGE); // Configure reverse pushbutton ISR to trigger on change
+  
+  //MID
+  pinMode(buttonMid.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonMid.pin, buttonISR, &buttonMid, CHANGE); // Configure reverse pushbutton ISR to trigger on change
+
+  //TOP
+  pinMode(buttonTop.pin, INPUT_PULLUP);                               // configure GPIO for reverse button pin as an input with pullup resistor
+  attachInterruptArg(buttonTop.pin, buttonISR, &buttonTop, CHANGE); // Configure reverse pushbutton ISR to trigger on change
 
   // Initialize the ESP-NOW protocol
   if (!ESP_NOW.begin()) {
@@ -223,9 +241,36 @@ void loop() {
       controlData.dir = 0;
     }
 
-    controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
+    if (!buttonBot.state){
+
+      controlData.mid = false;
+      controlData.top = false;
+      controlData.bot = true;
+    }
+    else if (!buttonMid.state){
+
+      controlData.bot = false;
+      controlData.top = false;
+      controlData.mid = true;
+
+    }
+    else if (!buttonTop.state){
+
+      controlData.bot = false;
+      controlData.mid = false;
+      controlData.top = true;
+      
+    }
+    else{
+
+    }
+
+
     controlData.left = !buttonLeft.state;              //set the struct variables
     controlData.right = !buttonRight.state;            //set the struct variables
+
+    controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
+    
 
     // if drive appears disconnected, update control signal to stop before sending
     if (commsLossCount > cMaxDroppedPackets) {
@@ -240,6 +285,12 @@ void loop() {
     }
 
     
+    Serial.print(controlData.bot);
+    Serial.print("    ");
+    Serial.print(controlData.mid);
+    Serial.print("    ");
+    Serial.print(controlData.top);
+    Serial.print("    ");
     Serial.print(controlData.left);
     Serial.print("    ");
     Serial.print(controlData.right);
@@ -250,9 +301,8 @@ void loop() {
     
 
 
-    doHeartbeat();                                      // update heartbeat LED
+    doHeartbeat();                                      // blink heartbeat LED
   }
-  
 }
 
 // blink heartbeat LED
