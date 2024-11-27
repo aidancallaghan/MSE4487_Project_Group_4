@@ -30,14 +30,10 @@ typedef struct {
   int speed;                                          //pot value from 0-4095
   bool left;                                          //is left button pressed?
   bool right;                                         //is right button pressed?
-<<<<<<< HEAD
   bool mode;                                          //Drive mode = 1, Sort mode = 0
-=======
   bool bot;
   bool mid;
   bool top;
-
->>>>>>> collector
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -290,7 +286,7 @@ void loop() {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
     }
 
-<<<<<<< HEAD
+
     if (digitalRead(35)){
       Serial.print("hello");
       Serial.print("    ");
@@ -299,9 +295,6 @@ void loop() {
       Serial.print("Goodbye");
       Serial.print("    ");
     }
-
-
-=======
     
     Serial.print(controlData.bot);
     Serial.print("    ");
@@ -309,12 +302,53 @@ void loop() {
     Serial.print("    ");
     Serial.print(controlData.top);
     Serial.print("    ");
->>>>>>> collector
     Serial.print(controlData.left);
     Serial.print("    ");
     Serial.print(controlData.right);
     Serial.print("    ");
     Serial.print(controlData.speed);
     Serial.print("    ");
-    Serial.println(control
+    Serial.println(controlData.mode);
+
+    doHeartbeat();
+  }
+
+}
+
+void doHeartbeat() {
+  uint32_t curMillis = millis();                      // get the current time in milliseconds
+  // check to see if elapsed time matches the heartbeat interval
+  if ((curMillis - lastHeartbeat) > cHeartbeatInterval) {
+    lastHeartbeat = curMillis;                        // update the heartbeat toggle time for the next cycle
+    digitalWrite(cHeartbeatLED, !digitalRead(cHeartbeatLED)); // toggle state of LED
+  }
+}
+
+// function to reboot the device
+
+
+//Copied from Lab4
+void failReboot() {
+  Serial.printf("Rebooting in 3 seconds...\n");
+  delay(3000);
+  ESP.restart();
+}
+
+// button interrupt service routine
+// argument is pointer to button structure, which is statically cast to a Button structure, allowing multiple
+// instances of the buttonISR to be created (1 per button)
+// implements software debounce and tracks button state
+void ARDUINO_ISR_ATTR buttonISR(void* arg) {
+  Button* s = static_cast<Button*>(arg);              // cast pointer to static structure
+
+  uint32_t pressTime = millis();                      // capture current time
+  s->state = digitalRead(s->pin);                     // capture state of button
+  // if button has been pressed and sufficient time has elapsed
+  if ((!s->state && s->lastState == 1) && (pressTime - s->lastPressTime > cDebounceDelay)) {
+    s->numberPresses += 1;                            // increment button press counter
+    s->pressed = true;                                // set flag for "valid" button press
+  }
+  s->lastPressTime = pressTime;                       // update time of last state change
+  s->lastState = s->state;                            // save last state
+}
   

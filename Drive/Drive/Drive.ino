@@ -1,5 +1,5 @@
 //#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
-//#define OUTPUT_ON
+#define OUTPUT_ON
 
 #include <Arduino.h>
 #include "ESP32_NOW.h"
@@ -55,14 +55,14 @@ const int cHeartbeatLED = 2;                          // GPIO pin of built-in LE
 const int cStatusLED = 27;                            // GPIO pin of communication status LED
 const int cHeartbeatInterval = 500;                   // heartbeat blink interval, in milliseconds
 const int cNumMotors = 3;                             // Number of DC motors
-const int cIN1Pin[] = {17, 19, 4};                       // GPIO pin(s) for INT1
-const int cIN2Pin[] = {16, 18, 5};                       // GPIO pin(s) for INT2
+const int cIN1Pin[] = {17, 19, 13};                       // GPIO pin(s) for INT1
+const int cIN2Pin[] = {16, 18, 12};                       // GPIO pin(s) for INT2
 const int cPWMRes = 8;                                // bit resolution for PWM
 const int cMinPWM = 0;                                // PWM value for minimum speed that turns motor
 const int cMaxPWM = pow(2, cPWMRes) - 1;              // PWM value for maximum speed
 const int cPWMFreq = 20000;                           // frequency of PWM signal
 const int cCountsRev = 1096;                          // encoder pulses per motor revolution
-const int cMaxSpeedInCounts = 1600;                   // maximum encoder counts/sec
+const int cMaxSpeedInCounts = 1600;    // maximum encoder counts/sec
 const int cMaxChange = 14;                            // maximum increment in counts/cycle
 const int cMaxDroppedPackets = 20;                    // maximum number of packets allowed to drop
 const float cKp = 1.5;                                // proportional gain for PID
@@ -190,6 +190,7 @@ void setup() {
   //Pinmodes
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat
   pinMode(23, OUTPUT);                                // TCS LED Pinmode
+  pinMode(27, OUTPUT);                                // TCS LED Pinmode
   pinMode(35, INPUT_PULLDOWN);                        //Switch for sort mode
 
     //Check if the connection is made to the sensor
@@ -266,20 +267,15 @@ void loop() {
   int pwm[] = {0, 0, 0};                                 // motor speed(s), represented in bit resolution
   int dir[] = {1, 1, 1};                                 // direction that motor should turn
 
-
-
-  int motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
-
   if (inData.bot){
     target[2] = 0;
   }
   else if(inData.mid){
-    target[2] = cCountsRev;
+    target[2] = 750;
   }
   else if (inData.top){
-    target[2] = 2 * cCountsRev;
+    target[2] = 1000;
   }
-
 
   // store encoder positions to avoid conflicts with ISR updates
   noInterrupts();                                                     // disable interrupts temporarily while reading
@@ -299,7 +295,8 @@ void loop() {
     if (!inData.mode){
       motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
       dirCommand = inData.dir;
-      digitalWrite(23,LOW);
+      digitalWrite(27, HIGH);
+      digitalWrite(23, LOW);
     }
     else{
     }
@@ -330,15 +327,21 @@ void loop() {
           posChange[k] = (float) (dirCommand * motorSpeed); // update with maximum speed // use direction from controller
         }
 
+        
         // update target for set direction
         targetF[k] = targetF[k] + posChange[k];         // set new target position
         
+        
+
         if (k == 0) {                                   // assume differential drive
           target[k] = (int32_t) targetF[k];             // motor 1 spins one way
         }
-        else {
+        else if (k==1){
           target[k] = (int32_t) -targetF[k];            // motor 2 spins in opposite direction
-        }     
+        } 
+        else{
+
+        }    
 
         // use PID to calculate control signal to motor
         e[k] = target[k] - pos[k];                      // position error
@@ -400,6 +403,7 @@ void loop() {
     if (inData.mode){
 
       digitalWrite(23,HIGH);
+      digitalWrite(27, LOW);
 
       r = tcs.read16(TCS34725_RDATAL);
       g = tcs.read16(TCS34725_GDATAL);
@@ -472,7 +476,6 @@ void doHeartbeat() {
   // check to see if elapsed time matches the heartbeat interval
   if ((curMillis - lastHeartbeat) > cHeartbeatInterval) {
     lastHeartbeat = curMillis;                        // update the heartbeat toggle time for the next cycle
-    Serial.println("hb");
     digitalWrite(cHeartbeatLED, !digitalRead(cHeartbeatLED)); // toggle state of LED
   }
 }
@@ -520,7 +523,31 @@ long degreesToDutyCycle(int deg) {
   long dutyCycle = map(deg, 0, 180, cMinDutyCycle, cMaxDutyCycle);  // convert to duty cycle
   #ifdef OUTPUT_ON
   float percent = dutyCycle * 0.0015259;              // dutyCycle / 65535 * 100
-  Serial.printf("Degrees %d, Duty Cycle Val: %ld = %f%%\n", servoPos, dutyCycle, percent);
+  Serial.print("Dir: ");
+  Serial.print(inData.dir);
+  Serial.print("   ");
+  Serial.print("Left: ");
+  Serial.print(inData.left);
+  Serial.print("   ");
+  Serial.print("Right: ");
+  Serial.print(inData.right);
+  Serial.print("   ");
+  Serial.print("Mode: ");
+  Serial.print(inData.mode);
+  Serial.print("   ");
+  Serial.print("Bot: ");
+  Serial.print(inData.bot);
+  Serial.print("   ");
+  Serial.print("Mid: ");
+  Serial.print(inData.mid);
+  Serial.print("   ");
+  Serial.print("Top: ");
+  Serial.print(inData.top);
+  Serial.print("              ");
+  Serial.print(target[2]);
+  Serial.print("   ");
+  Serial.print(encoder[2].pos);
+  Serial.println("   ");
   #endif
   return dutyCycle;
 }
