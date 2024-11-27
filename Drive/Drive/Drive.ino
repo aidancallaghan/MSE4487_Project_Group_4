@@ -1,9 +1,12 @@
-#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
+//#define PRINT_INCOMING                                   // uncomment to turn on output of incoming data
+//#define OUTPUT_ON
 
 #include <Arduino.h>
 #include "ESP32_NOW.h"
 #include "WiFi.h"
 #include <esp_mac.h>                                  // For the MAC2STR and MACSTR macros
+#include <Wire.h>
+#include "Adafruit_TCS34725.h"                        //For Colour sensor
 
 
 // Definitions
@@ -19,6 +22,7 @@ typedef struct {
   int speed;                                          // variable for receiving motor speed
   bool left;                                          // variable for left button, either on or off
   bool right;                                         // variable for right button, either on or off
+  bool mode;                                          //Drive mode = 1, Sort mode = 0
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -41,6 +45,7 @@ void doHeartbeat();
 void setMotor(int dir, int pwm, int in1, int in2);
 void failReboot();
 void ARDUINO_ISR_ATTR encoderISR(void* arg);
+long degreesToDutyCycle(int deg);
 
 // Constants
 const int cHeartbeatLED = 2;                          // GPIO pin of built-in LED for heartbeat
@@ -60,16 +65,33 @@ const int cMaxDroppedPackets = 20;                    // maximum number of packe
 const float cKp = 1.5;                                // proportional gain for PID
 const float cKi = 0.2;                                // integral gain for PID
 const float cKd = 0.8;                                // derivative gain for PID
+const long cMinDutyCycle = 1650;                      // duty cycle for 0 degrees (adjust for motor if necessary)
+const long cMaxDutyCycle = 8175;                      // duty cycle for 180 degrees (adjust for motor if necessary)
 
 // Variables
 uint32_t lastHeartbeat = 0;                           // time of last heartbeat state change
-uint32_t lastTime = 0;                                // last time of motor control was updated
+uint32_t lastTime1 = 0;                                // last time of motor control was updated
+uint32_t lastTime2 = 0;                                // last time of motor control was updated
 uint16_t commsLossCount = 0;                          // number of sequential sent packets have dropped
 Encoder encoder[] = {{25, 26, 0},                     // encoder 0 on GPIO 25 and 26, 0 position
                      {32, 33, 0}};                    // encoder 1 on GPIO 32 and 33, 0 position
 int32_t target[] = {0, 0};                            // target encoder count for motor
 int32_t lastEncoder[] = {0, 0};                       // encoder count at last control cycle
 float targetF[] = {0.0, 0.0};                         // target for motor as float
+int dirCommand = 0;                                   //needed this variable so i could decide if controller dir is used or sorting dir
+int motorSpeed = 0;                                   //speed for motors
+
+uint16_t r;
+uint16_t g;
+uint16_t b;
+uint16_t c;
+
+bool bWindow;
+bool rWindow;
+bool gWindow;
+bool cWindow;
+bool ctWindow;
+bool lWindow;
 
 uint8_t receiverMacAddress[] = {0x88,0x13,0xBF,0x62,0x52,0xCC};   // MAC address of controller 00:01:02:03:04:05
 esp_now_control_data_t inData;                                    // control data packet from controller
@@ -135,6 +157,10 @@ public:
 // Peers
 ESP_NOW_Network_Peer *peer;
 
+/* Initialise with specific int time and gain values */
+//Taken from example sketch
+Adafruit_TCS34725 tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_614MS, TCS34725_GAIN_1X);
+
 
 void setup() {
   
@@ -155,8 +181,23 @@ void setup() {
   Serial.print("MAC address for drive "); 
   Serial.println(WiFi.macAddress());                  // print MAC address of ESP32
 
-  //Heartbeat Pinmode
+
+  //Pinmodes
   pinMode(cHeartbeatLED, OUTPUT);                     // configure built-in LED for heartbeat
+  pinMode(23, OUTPUT);                                // TCS LED Pinmode
+  pinMode(35, INPUT_PULLDOWN);                        //Switch for sort mode
+
+    //Check if the connection is made to the sensor
+    //Taken from lab 4
+  if (tcs.begin()) {
+    //Output success message
+    Serial.println("Found sensor");
+  } else {
+    //Output failure message
+    Serial.println("No TCS34725 found ... check your connections");
+    //Must reset board
+    while (1);
+  }
 
   //setup motors with encoders
   //Copied from Lab4
@@ -173,6 +214,8 @@ void setup() {
 
   }
 
+  //Setup servo motor
+  ledcAttach(15, 50, 16);                      // setup servo pin for 50 Hz, 16-bit resolution
 
   // Initialize the ESP-NOW protocol
   //Copied from Lab4
@@ -219,8 +262,6 @@ void loop() {
   int dir[] = {1, 1};                                 // direction that motor should turn
 
 
-  int motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
-
 
   // store encoder positions to avoid conflicts with ISR updates
   noInterrupts();                                                     // disable interrupts temporarily while reading
@@ -233,91 +274,173 @@ void loop() {
   interrupts(); 
 
 
-  uint32_t curTime = micros();                        // capture current time in microseconds
+  uint32_t curTime1 = micros();                        // capture current time in microseconds
 
-  if (curTime - lastTime > 10000) {                   // wait ~10 ms
+  if (curTime1 - lastTime1 > 10000) {                   // wait ~10 ms
 
+    if (!inData.mode){
+      motorSpeed = map(inData.speed, 0, 4095, 0, 14);               // scale raw incoming data to servo range
+      dirCommand = inData.dir;
+      digitalWrite(23,LOW);
+    }
+    else{
+    }
 
-    deltaT = ((float) (curTime - lastTime)) / 1.0e6;  // compute actual time interval in seconds
-    lastTime = curTime;                               // update start time for next control cycle
+    deltaT = ((float) (curTime1 - lastTime1)) / 1.0e6;  // compute actual time interval in seconds
+    lastTime1 = curTime1;                               // update start time for next control cycle
 
-
-    driveData.time = curTime;                         // update transmission time
-
-    //Copied from Aidan's Lab4 Submission
-    for (int k = 0; k < cNumMotors; k++) {
-
-
-      velEncoder[k] = ((float) pos[k] - (float) lastEncoder[k]) / deltaT;       // calculate velocity in counts/sec
-      lastEncoder[k] = pos[k];                                                  // store encoder count for next control cycle
-      velMotor[k] = velEncoder[k] / cCountsRev * 60;                            // calculate motor shaft velocity in rpm
+    driveData.time = curTime1;                         // update transmission time
 
 
-      if (inData.left && inData.dir == 0) {           // if case switcher to see if only left or right button pressed w/o any froward or revers
-          posChange[0] = motorSpeed;                  // over ride the inData.dir * motorSpeed to force the same direction of the motors
-          posChange[1] = -motorSpeed;                 // because lower if k == 0 target = +/- targetF case, the directions have to be flopped
-      } else if (inData.right && inData.dir == 0) {
-          posChange[0] = -motorSpeed;
-          posChange[1] = motorSpeed;
-      } else {
-        posChange[k] = (float) (inData.dir * motorSpeed); // update with maximum speed // use direction from controller
+    
+      //Copied from Aidan's Lab4 Submission             //For loop for motor control
+      for (int k = 0; k < cNumMotors; k++) {
+
+
+        velEncoder[k] = ((float) pos[k] - (float) lastEncoder[k]) / deltaT;       // calculate velocity in counts/sec
+        lastEncoder[k] = pos[k];                                                  // store encoder count for next control cycle
+        velMotor[k] = velEncoder[k] / cCountsRev * 60;                            // calculate motor shaft velocity in rpm
+
+
+        if (inData.left && dirCommand == 0) {           // if case switcher to see if only left or right button pressed w/o any froward or revers
+            posChange[0] = motorSpeed;                  // over ride the inData.dir * motorSpeed to force the same direction of the motors
+            posChange[1] = -motorSpeed;                 // because lower if k == 0 target = +/- targetF case, the directions have to be flopped
+        } else if (inData.right && dirCommand == 0) {
+            posChange[0] = -motorSpeed;
+            posChange[1] = motorSpeed;
+        } else {
+          posChange[k] = (float) (dirCommand * motorSpeed); // update with maximum speed // use direction from controller
+        }
+
+        // update target for set direction
+        targetF[k] = targetF[k] + posChange[k];         // set new target position
+        
+        if (k == 0) {                                   // assume differential drive
+          target[k] = (int32_t) targetF[k];             // motor 1 spins one way
+        }
+        else {
+          target[k] = (int32_t) -targetF[k];            // motor 2 spins in opposite direction
+        }     
+
+        // use PID to calculate control signal to motor
+        e[k] = target[k] - pos[k];                      // position error
+        dedt[k] = ((float) e[k]- ePrev[k]) / deltaT;    // derivative of error
+        eIntegral[k] = eIntegral[k] + e[k] * deltaT;    // integral of error (finite difference)
+        u[k] = cKp * e[k] + cKd * dedt[k] + cKi * eIntegral[k]; // compute PID-based control signal
+        ePrev[k] = e[k];                                // store error for next control cycle
+    
+        // set direction based on computed control signal
+        dir[k] = 1;                                     // default to forward directon
+        if (u[k] < 0) {                                 // if control signal is negative
+          dir[k] = -1;                                  // set direction to reverse
+        }
+
+        // set speed based on computed control signal
+        u[k] = fabs(u[k]);                              // get magnitude of control signal
+        if (u[k] > cMaxSpeedInCounts) {                 // if control signal will saturate motor
+          u[k] = cMaxSpeedInCounts;                     // impose upper limit
+        }
+        pwm[k] = map(u[k], 0, cMaxSpeedInCounts, cMinPWM, cMaxPWM); // convert control signal to pwm
+
+        // if loop to filter out both left right and front back buttons
+        if (inData.left && dirCommand != 0) {           // if left and either front or back, kill power to one side    
+          pwm[0] = 0;
+        } else if (inData.right && dirCommand != 0) {   // if right and either front or back, kill power to other side
+          pwm[1] = 0;
+        }      
+
+        if (commsLossCount < cMaxDroppedPackets / 4) {
+          setMotor(dir[k], pwm[k], cIN1Pin[k], cIN2Pin[k]); // update motor speed and direction
+        }
+        else {
+          setMotor(0, 0, cIN1Pin[k], cIN2Pin[k]);       // stop motor
+        }
+
       }
 
-      // update target for set direction
-      targetF[k] = targetF[k] + posChange[k];         // set new target position
+  }
+
+
+//Needed a second one for colour sensor which takes 700ms to complete
+  uint32_t curTime2 = millis();
+
+  if (curTime2 - lastTime2 > 800) {
+
+    ledcWrite(15, degreesToDutyCycle(85)); // set the desired servo position
+
+    if (inData.mode){
       
-      if (k == 0) {                                   // assume differential drive
-        target[k] = (int32_t) targetF[k];             // motor 1 spins one way
-      }
-      else {
-        target[k] = (int32_t) -targetF[k];            // motor 2 spins in opposite direction
-      }     
-
-            // use PID to calculate control signal to motor
-      e[k] = target[k] - pos[k];                      // position error
-      dedt[k] = ((float) e[k]- ePrev[k]) / deltaT;    // derivative of error
-      eIntegral[k] = eIntegral[k] + e[k] * deltaT;    // integral of error (finite difference)
-      u[k] = cKp * e[k] + cKd * dedt[k] + cKi * eIntegral[k]; // compute PID-based control signal
-      ePrev[k] = e[k];                                // store error for next control cycle
-  
-      // set direction based on computed control signal
-      dir[k] = 1;                                     // default to forward directon
-      if (u[k] < 0) {                                 // if control signal is negative
-        dir[k] = -1;                                  // set direction to reverse
-      }
-
-      // set speed based on computed control signal
-      u[k] = fabs(u[k]);                              // get magnitude of control signal
-      if (u[k] > cMaxSpeedInCounts) {                 // if control signal will saturate motor
-        u[k] = cMaxSpeedInCounts;                     // impose upper limit
-      }
-      pwm[k] = map(u[k], 0, cMaxSpeedInCounts, cMinPWM, cMaxPWM); // convert control signal to pwm
-
-      // if loop to filter out both left right and front back buttons
-      if (inData.left && inData.dir != 0) {           // if left and either front or back, kill power to one side    
-        pwm[0] = 0;
-      } else if (inData.right && inData.dir != 0) {   // if right and either front or back, kill power to other side
-        pwm[1] = 0;
-      }      
-
-      if (commsLossCount < cMaxDroppedPackets / 4) {
-        setMotor(dir[k], pwm[k], cIN1Pin[k], cIN2Pin[k]); // update motor speed and direction
-      }
-      else {
-        setMotor(0, 0, cIN1Pin[k], cIN2Pin[k]);       // stop motor
-      }
+      motorSpeed = 4;
+      dirCommand = 1;
 
     }
 
+  }
 
-    // send data from drive to controller
-    if (peer->send_message((const uint8_t *) &driveData, sizeof(driveData))) {
-      digitalWrite(cStatusLED, 0);                    // if successful, turn off communucation status LED
-    }
-    else {
-      digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
-    }
+  if (curTime2 - lastTime2 > 2200) {
 
+    if (inData.mode){
+
+      digitalWrite(23,HIGH);
+
+      r = tcs.read16(TCS34725_RDATAL);
+      g = tcs.read16(TCS34725_GDATAL);
+      b = tcs.read16(TCS34725_BDATAL);
+      c = tcs.read16(TCS34725_CDATAL);
+
+    }
+    
+  }
+
+  if (curTime2 - lastTime2 > 3000) {
+
+    uint16_t CT = tcs.calculateColorTemperature_dn40(r, g, b, c);
+    uint16_t l = tcs.calculateLux(r, g, b);
+
+    bWindow = (b>2000)&&(b<2500);
+    rWindow = (r>2150)&&(r<2800);
+    gWindow = (g>2600)&&(g<3200);
+    cWindow = (c>700)&&(c<84000);
+    ctWindow = 0;
+    lWindow = l>1800;
+    
+
+    if (inData.mode){
+      if (bWindow&&rWindow&&gWindow&&cWindow&&lWindow){
+        ledcWrite(15, degreesToDutyCycle(165)); // set the desired servo position 
+        Serial.print("PASS     ");
+      }
+      else{
+        ledcWrite(15, degreesToDutyCycle(15)); // set the desired servo position
+        Serial.print("FAIL     ");
+      }
+
+      //Print Values
+      Serial.print("B:");
+      Serial.print(b);
+      Serial.print(",");
+      Serial.print("R:");
+      Serial.print(r);
+      Serial.print(",");
+      Serial.print("G:");
+      Serial.print(g);
+      Serial.print(",");
+      Serial.print("C:");
+      Serial.print(c);
+      Serial.print(",");
+      Serial.print("CT:");
+      Serial.print(CT);
+      Serial.print(",");
+      Serial.print("L:");
+      Serial.print(l);
+      Serial.println(",");
+
+
+    }
+    else{
+
+    }
+      lastTime2 = curTime2;
   }
 
   doHeartbeat();                                      // update heartbeat LED
@@ -371,4 +494,15 @@ void ARDUINO_ISR_ATTR encoderISR(void* arg) {
   else {                                              // B low indicates that it is lagging channel A
     s->pos--;                                         // decrease position
   }
+  
+} 
+
+long degreesToDutyCycle(int deg) {
+  long dutyCycle = map(deg, 0, 180, cMinDutyCycle, cMaxDutyCycle);  // convert to duty cycle
+  #ifdef OUTPUT_ON
+  float percent = dutyCycle * 0.0015259;              // dutyCycle / 65535 * 100
+  Serial.printf("Degrees %d, Duty Cycle Val: %ld = %f%%\n", servoPos, dutyCycle, percent);
+  #endif
+  return dutyCycle;
 }
+
