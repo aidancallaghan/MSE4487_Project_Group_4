@@ -274,7 +274,7 @@ void loop() {
     target[2] = 750;
   }
   else if (inData.top){
-    target[2] = 1000;
+    target[2] = 1200;
   }
 
   // store encoder positions to avoid conflicts with ISR updates
@@ -317,10 +317,10 @@ void loop() {
         velMotor[k] = velEncoder[k] / cCountsRev * 60;                            // calculate motor shaft velocity in rpm
 
 
-        if (inData.left && dirCommand == 0) {           // if case switcher to see if only left or right button pressed w/o any froward or revers
+        if (inData.right && dirCommand == 0) {           // if case switcher to see if only left or right button pressed w/o any froward or revers
             posChange[0] = motorSpeed;                  // over ride the inData.dir * motorSpeed to force the same direction of the motors
             posChange[1] = -motorSpeed;                 // because lower if k == 0 target = +/- targetF case, the directions have to be flopped
-        } else if (inData.right && dirCommand == 0) {
+        } else if (inData.left && dirCommand == 0) {
             posChange[0] = -motorSpeed;
             posChange[1] = motorSpeed;
         } else {
@@ -423,12 +423,12 @@ void loop() {
     rWindow = (r>2150)&&(r<2800);
     gWindow = (g>2600)&&(g<3200);
     cWindow = (c>700)&&(c<84000);
-    ctWindow = 0;
-    lWindow = l>1800;
+    ctWindow = CT<5000;
+    lWindow = l>1815;
     
 
     if (inData.mode){
-      if (bWindow&&rWindow&&gWindow&&cWindow&&lWindow){
+      if (bWindow&&rWindow&&gWindow&&cWindow&&ctWindow&&lWindow){
         ledcWrite(15, degreesToDutyCycle(165)); // set the desired servo position 
         Serial.print("PASS     ");
       }
@@ -521,7 +521,7 @@ void ARDUINO_ISR_ATTR encoderISR(void* arg) {
 
 long degreesToDutyCycle(int deg) {
   long dutyCycle = map(deg, 0, 180, cMinDutyCycle, cMaxDutyCycle);  // convert to duty cycle
-  #ifdef OUTPUT_ON
+  /*#ifdef OUTPUT_ON
   float percent = dutyCycle * 0.0015259;              // dutyCycle / 65535 * 100
   Serial.print("Dir: ");
   Serial.print(inData.dir);
@@ -548,7 +548,7 @@ long degreesToDutyCycle(int deg) {
   Serial.print("   ");
   Serial.print(encoder[2].pos);
   Serial.println("   ");
-  #endif
+  #endif*/
   return dutyCycle;
 }
 
