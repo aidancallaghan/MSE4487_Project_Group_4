@@ -30,10 +30,10 @@ typedef struct {
   int speed;                                          //pot value from 0-4095
   bool left;                                          //is left button pressed?
   bool right;                                         //is right button pressed?
-  bool mode;                                          //Drive mode = 1, Sort mode = 0
-  bool bot;
-  bool mid;
-  bool top;
+  bool mode;                                          //Drive mode = 0, Sort mode = 1
+  bool bot;                                           // Bool to represent bucket is desired to be at bottom position
+  bool mid;                                           // Bool to represent bucket is desired to be at middle position
+  bool top;                                           // Bool to represent bucket is desired to be at top position
 } __attribute__((packed)) esp_now_control_data_t;
 
 // Drive data packet structure
@@ -242,11 +242,15 @@ void loop() {
       controlData.dir = 0;
     }
 
+
+    //This If statement determines which height to request the bucket at. It's made so that once one button is pushed
+    //the other bools turn off. that way only one state is set at a time.
     if (!buttonBot.state){
 
       controlData.mid = false;
       controlData.top = false;
       controlData.bot = true;
+      
     }
     else if (!buttonMid.state){
 
@@ -262,15 +266,10 @@ void loop() {
       controlData.top = true;
       
     }
-    else{
-
-    }
-
 
     controlData.left = !buttonLeft.state;              //set the struct variables
     controlData.right = !buttonRight.state;            //set the struct variables
     controlData.mode = digitalRead(35);                //The mode is set with the switch
-
     controlData.speed = analogRead(34);               //Pot value sent as a variable in the structure
     
 
@@ -285,17 +284,8 @@ void loop() {
     else {
       digitalWrite(cStatusLED, 1);                    // otherwise, turn on communication status LED
     }
-
-
-    if (digitalRead(35)){
-      Serial.print("hello");
-      Serial.print("    ");
-    }
-    else{
-      Serial.print("Goodbye");
-      Serial.print("    ");
-    }
     
+    //Serial print for debugging
     Serial.print(controlData.bot);
     Serial.print("    ");
     Serial.print(controlData.mid);
