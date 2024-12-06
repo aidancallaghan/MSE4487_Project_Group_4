@@ -330,8 +330,13 @@ void failReboot() {
 // implements software debounce and tracks button state
 void ARDUINO_ISR_ATTR buttonISR(void* arg) {
   Button* s = static_cast<Button*>(arg);              // cast pointer to static structure
-
   uint32_t pressTime = millis();                      // capture current time
   s->state = digitalRead(s->pin);                     // capture state of button
   // if button has been pressed and sufficient time has elapsed
-  if ((!s->state && s->lastState == 1) && (pressTime - s->lastPressTime > cDebou
+  if ((!s->state && s->lastState == 1) && (pressTime - s->lastPressTime > cDebounceDelay)) {
+    s->numberPresses += 1;                            // increment button press counter
+    s->pressed = true;                                // set flag for "valid" button press
+  }
+  s->lastPressTime = pressTime;                       // update time of last state change
+  s->lastState = s->state;                            // save last state
+}
