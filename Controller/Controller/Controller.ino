@@ -60,24 +60,24 @@ void failReboot();
 void ARDUINO_ISR_ATTR buttonISR(void* arg);
 
 // Constants
-const int cHeartbeatLED = 2;                          // GPIO pin of built-in LED for heartbeat
-const int cHeartbeatInterval = 500;                   // heartbeat blink interval, in milliseconds
-const int cStatusLED = 26;                            // GPIO pin of communication status LED
-const int cDebounceDelay = 20;                        // button debounce delay in milliseconds
-const int cMaxDroppedPackets = 20;                    // maximum number of packets allowed to drop
+const int cHeartbeatLED = 2;                           // GPIO pin of built-in LED for heartbeat
+const int cHeartbeatInterval = 500;                    // heartbeat blink interval, in milliseconds
+const int cStatusLED = 26;                             // GPIO pin of communication status LED
+const int cDebounceDelay = 20;                         // button debounce delay in milliseconds
+const int cMaxDroppedPackets = 20;                     // maximum number of packets allowed to drop
 
 // Variables
-uint32_t lastHeartbeat = 0;                           // time of last heartbeat state change
-uint32_t lastTime = 0;                                // last time of motor control was updated
-uint32_t commsLossCount = 0;                          // number of sequential sent packets have dropped
+uint32_t lastHeartbeat = 0;                            // time of last heartbeat state change
+uint32_t lastTime = 0;                                 // last time of motor control was updated
+uint32_t commsLossCount = 0;                           // number of sequential sent packets have dropped
 
-Button buttonFwd = {14, 0, 0, false, true, true};     // forward, NO pushbutton on GPIO 14, low state when pressed
-Button buttonRev = {13, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
+Button buttonFwd = {14, 0, 0, false, true, true};      // forward, NO pushbutton on GPIO 14, low state when pressed
+Button buttonRev = {13, 0, 0, false, true, true};      // reverse, NO pushbutton on GPIO 12, low state when pressed
 Button buttonLeft = {12, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
-Button buttonRight = {27, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
-Button buttonBot = {32, 0, 0, false, true, true};     // reverse, NO pushbutton on GPIO 12, low state when pressed
-Button buttonMid = {33, 0, 0, false, true, true};     // left, NO pushbutton on GPIO 27, low state when pressed
-Button buttonTop = {25, 0, 0, false, true, true};     // right, NO pushbutton on GPIO 13, low state when pressed
+Button buttonRight = {27, 0, 0, false, true, true};    // right, NO pushbutton on GPIO 13, low state when pressed
+Button buttonBot = {32, 0, 0, false, true, true};      // reverse, NO pushbutton on GPIO 12, low state when pressed
+Button buttonMid = {33, 0, 0, false, true, true};      // left, NO pushbutton on GPIO 27, low state when pressed
+Button buttonTop = {25, 0, 0, false, true, true};      // right, NO pushbutton on GPIO 13, low state when pressed
 
 // REPLACE WITH MAC ADDRESS OF YOUR DRIVE ESP32
 uint8_t receiverMacAddress[] = {0xAC,0x15,0x18,0xD6,0x81,0x34};  // MAC address of drive 00:01:02:03:04:05 
@@ -151,7 +151,7 @@ ESP_NOW_Network_Peer *peer;
 void setup() {
 
   //Setup Serial
-  Serial.begin(9600);                               // standard baud rate for ESP32 serial monitor
+  Serial.begin(9600);                                 // standard baud rate for ESP32 serial monitor
   while (!Serial) {                                   // wait for Serial to start
     delay(10);                                        // okay to delay during setup
   }
@@ -334,11 +334,4 @@ void ARDUINO_ISR_ATTR buttonISR(void* arg) {
   uint32_t pressTime = millis();                      // capture current time
   s->state = digitalRead(s->pin);                     // capture state of button
   // if button has been pressed and sufficient time has elapsed
-  if ((!s->state && s->lastState == 1) && (pressTime - s->lastPressTime > cDebounceDelay)) {
-    s->numberPresses += 1;                            // increment button press counter
-    s->pressed = true;                                // set flag for "valid" button press
-  }
-  s->lastPressTime = pressTime;                       // update time of last state change
-  s->lastState = s->state;                            // save last state
-}
-  
+  if ((!s->state && s->lastState == 1) && (pressTime - s->lastPressTime > cDebou
