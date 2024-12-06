@@ -494,10 +494,4 @@ void setMotor(int dir, int pwm, int in1, int in2) {
     ledcWrite(in1, 0);
     ledcWrite(in2, pwm);
   }
-  else {                                        // function to reboot the device
-//Copied from Lab4
-void failReboot() {
-  Serial.printf("Rebooting in 3 seconds...\n");
-  delay(3000);
-  ESP.restart();
-}
+  else {                                        
