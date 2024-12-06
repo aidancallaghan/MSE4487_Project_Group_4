@@ -530,4 +530,5 @@ long degreesToDutyCycle(int deg) {
   Serial.printf("Degrees %d, Duty Cycle Val: %ld = %f%%\n", servoPos, dutyCycle, percent);
   #endif
   return dutyCycle;
-}                                    
+}
+                                    
