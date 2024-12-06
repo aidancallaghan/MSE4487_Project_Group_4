@@ -495,4 +495,39 @@ void setMotor(int dir, int pwm, int in1, int in2) {
     ledcWrite(in1, 0);
     ledcWrite(in2, pwm);
   }
-  else {                                        
+  else {                                              // stop
+    ledcWrite(in1, 0);
+    ledcWrite(in2, 0);
+  }
+}
+
+// function to reboot the device
+//Copied from Lab4
+void failReboot() {
+  Serial.printf("Rebooting in 3 seconds...\n");
+  delay(3000);
+  ESP.restart();
+}
+
+//Copied from Lab4
+void ARDUINO_ISR_ATTR encoderISR(void* arg) {
+  Encoder* s = static_cast<Encoder*>(arg);            // cast pointer to static structure
+
+  int b = digitalRead(s->chanB);                      // read state of channel B
+  if (b > 0) {                                        // B high indicates that it is leading channel A
+    s->pos++;                                         // increase position
+  }
+  else {                                              // B low indicates that it is lagging channel A
+    s->pos--;                                         // decrease position
+  }
+
+} 
+
+long degreesToDutyCycle(int deg) {
+  long dutyCycle = map(deg, 0, 180, cMinDutyCycle, cMaxDutyCycle);  // convert to duty cycle
+  #ifdef OUTPUT_ON
+  float percent = dutyCycle * 0.0015259;              // dutyCycle / 65535 * 100
+  Serial.printf("Degrees %d, Duty Cycle Val: %ld = %f%%\n", servoPos, dutyCycle, percent);
+  #endif
+  return dutyCycle;
+}                                    
